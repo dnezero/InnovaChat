@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InnovaChat</title>
+    <!-- Highlight.js CSS for codeblock theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <!-- Your custom CSS (should be loaded after highlight.js to override or add styles) -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- The chat interface will now be a single main area, without an account sidebar -->
+    <div class="chat-container">
+        <div class="sidebar"> 
+            <button class="new-chat-button" id="new-chat-button">+ Add Chat</button>
+            <ul class="chat-list" id="chat-list"></ul>
+        </div>
+        <!-- Main chat area -->
+        <div class="chat-main">
+            <div class="chat-header">
+                <h2 class="chat-header-title">InnovaChat</h2>
+                <!-- <p class="chat-header-info">Session ID: <span id="session-id-display">N/A</span></p> -->
+            </div>
+            <div class="messages-display" id="messages-display">
+                <!-- Messages will be displayed here -->
+                <!-- Example message:
+                <div class="message-bubble user">
+                    <p>Hello bot, how are you?</p>
+                    <span class="message-timestamp">09/06/2025 01:30</span>
+                </div>
+                <div class="message-bubble bot">
+                    <p>I'm fine, thank you!</p>
+                    <span class="message-timestamp">09/06/2025 01:31</span>
+                </div>
+                -->
+                <div class="typing-indicator" style="display: none;">
+                    Bot is typing...
+                </div>
+            </div>
+            <div class="message-input-area">
+                <textarea id="user-message-input" placeholder="Type your message..." rows="1"></textarea>
+                <button id="send-button">Send</button>
+                <button id="stop-button" style="display: none;">Stop</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Scripts -->
+    <!-- Marked.js for Markdown to HTML conversion -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Highlight.js for code syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Optional: If you need to recognize more specific languages, include them here (e.g., python.min.js, javascript.min.js) -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script> -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script> -->
+    <!-- Your main script -->
+    <script src="script.js"></script>
+</body>
+</html>

@@ -20,7 +20,12 @@ app = Flask(__name__)
 # In produzione, dovresti specificare l'URL esatto del tuo frontend su Render.
 # Ad esempio: CORS(app, resources={r"/api/*": {"origins": "https://il-tuo-frontend.onrender.com"}})
 # Per ora, permettiamo qualsiasi origine per facilità di sviluppo, ma in produzione non è sicuro.
-CORS(app) 
+# AGGIORNA questa riga con l'URL ESATTO del tuo frontend su Render
+# Esempio: CORS(app, resources={r"/api/*": {"origins": "https://innova-chat-frontend.onrender.com"}})
+CORS(app, resources={r"/api/*": {"origins": "https://InnovaChatFrontEnd.onrender.com/"}})
+
+# Se vuoi continuare a testare anche localmente, puoi mettere un elenco:
+# CORS(app, resources={r"/api/*": {"origins": ["TUO_URL_FRONTEND_DI_RENDER", "http://127.0.0.1:8000"]}})
 
 # La chiave API di Gemini. Assicurati che sia configurata nelle variabili d'ambiente di Render.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

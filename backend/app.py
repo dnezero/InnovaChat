@@ -22,7 +22,7 @@ app = Flask(__name__)
 # Per ora, permettiamo qualsiasi origine per facilità di sviluppo, ma in produzione non è sicuro.
 # AGGIORNA questa riga con l'URL ESATTO del tuo frontend su Render
 # Esempio: CORS(app, resources={r"/api/*": {"origins": "https://innova-chat-frontend.onrender.com"}})
-CORS(app, resources={r"/api/*": {"origins": "https://InnovaChatFrontEnd.onrender.com/"}})
+CORS(app, resources={r"/api/*": {"origins": "https://innovachatfrontend.onrender.com"}})
 
 # Se vuoi continuare a testare anche localmente, puoi mettere un elenco:
 # CORS(app, resources={r"/api/*": {"origins": ["TUO_URL_FRONTEND_DI_RENDER", "http://127.0.0.1:8000"]}})

@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // URL of your Flask backend server
     // Ensure your Flask backend is running and accessible at this URL
-    const BACKEND_BASE_URL = 'http://127.0.0.1:5000'; 
+    const BACKEND_BASE_URL = 'http://InnovaChatBackEnd.onrender.com/'; 
 
     // HTML element references - Chat interface
     const messagesDisplay = document.getElementById('messages-display');

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InnovaChat</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <img src="logo.png" alt="InnovaChat Logo" width="32" height="32">
+                <button class="new-chat-button" id="new-chat-button">+ Add Chat</button>
+            </div>
+            <div id="chat-list-container"></div>
+            <a href="https://discord.gg/CaxQgkc8YB" target="_blank" class="discord-button">
+                Join our Discord
+            </a>
+        </div>
+        <div class="chat-area">
+            <div class="chat-header">
+                <h2 class="chat-header-title">InnovaChat</h2>
+            </div>
+            <div id="messages-display"></div>
+            <div class="chat-input-area">
+                <textarea id="user-message-input" placeholder="Type your message here..."></textarea>
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

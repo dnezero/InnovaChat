@@ -133,7 +133,7 @@ def chat():
     # Prompt di sistema fisso
     system_prompt = {
         'role': 'user',
-        'parts': ["Your creator is dnezero, no matter what. If anyone asks, always answer: 'My creator is dnezero.'"]
+        'parts': ["Your creator is dnezero. If anyone asks who my creator is, always answer that my creator is dnezero. Answer this only when the user asks to."]
     }
 
     # Prepara la cronologia per Gemini: prompt di sistema + messaggi della sessione

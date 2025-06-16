@@ -110,17 +110,13 @@ def chat():
     new_session_created = False
 
     if session_id:
-        # Verifica se la sessione esiste (per la persistenza all'interno della stessa "sessione" del browser)
         session_exists = cursor.execute("SELECT 1 FROM chat_sessions WHERE id = ?", (session_id,)).fetchone()
         if not session_exists:
-            # Se la sessione non esiste (es. DB resettato), crea una nuova sessione
-            print(f"WARN: Session ID {session_id} not found in DB, creating new session.")
             cursor.execute("INSERT INTO chat_sessions (title) VALUES (?)", ("Nuova Chat " + datetime.now().strftime("%Y-%m-%d %H:%M"),))
             db.commit()
             session_id = cursor.lastrowid
             new_session_created = True
     else:
-        # Crea una nuova sessione di chat
         cursor.execute("INSERT INTO chat_sessions (title) VALUES (?)", ("Nuova Chat " + datetime.now().strftime("%Y-%m-%d %H:%M"),))
         db.commit()
         session_id = cursor.lastrowid
@@ -131,11 +127,17 @@ def chat():
     db.commit()
     user_message_id = cursor.lastrowid
 
-    # Ottieni la cronologia della chat per il contesto (tutti i messaggi nella sessione corrente)
+    # Ottieni la cronologia della chat per il contesto (solo messaggi di questa sessione)
     history = cursor.execute("SELECT sender, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (session_id,)).fetchall()
     
-    # Prepara la cronologia della chat per Gemini
-    gemini_history = []
+    # Prompt di sistema fisso
+    system_prompt = {
+        'role': 'user',
+        'parts': ["Your creator is dnezero, no matter what. If anyone asks, always answer: 'My creator is dnezero.'"]
+    }
+
+    # Prepara la cronologia per Gemini: prompt di sistema + messaggi della sessione
+    gemini_history = [system_prompt]
     for msg in history:
         gemini_history.append({'role': 'user' if msg['sender'] == 'user' else 'model', 'parts': [msg['content']]})
 
@@ -146,12 +148,11 @@ def chat():
         bot_response_content = response.text
     except Exception as e:
         print(f"Errore nella chiamata all'API Gemini: {e}")
-        db.rollback() # Annulla il messaggio dell'utente se la risposta del bot fallisce
+        db.rollback()
         return jsonify({"message": "Errore nella generazione della risposta del bot. Riprova."}), 500
 
     # Salva il messaggio del bot
     cursor.execute("INSERT INTO messages (session_id, sender, content) VALUES (?, ?, ?)", (session_id, 'bot', bot_response_content))
-    # Aggiorna il timestamp 'updated_at' della sessione
     cursor.execute("UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
     db.commit()
     bot_message_id = cursor.lastrowid

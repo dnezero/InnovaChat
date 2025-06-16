@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         switchChat(id);
         // Add welcome message
         addBotMessage('Hello! I am InnovaChat. How can I help you?');
+        currentSessionId = null; // <--- IMPORTANTE: resetta sessione backend!
     }
 
     // Add a message to the current chat and display
@@ -267,10 +268,17 @@ document.addEventListener('DOMContentLoaded', () => {
         typingIndicator.style.display = 'block';
 
         try {
+            // Invia solo il messaggio utente e l'eventuale sessionId
             const response = await apiRequest('/api/chat', 'POST', {
                 message: messageContent,
-                sessionId: null // Not used with local chat
+                sessionId: currentSessionId // può essere null alla prima richiesta
             });
+
+            // Se il backend restituisce un nuovo sessionId, salvalo
+            if (response.sessionId) {
+                currentSessionId = response.sessionId;
+            }
+
             addBotMessage(response.botMessage.content, response.botMessage.timestamp, response.botMessage.id);
         } catch (error) {
             addBotMessage(`Error: ${error.message || 'Could not get response. Please try again.'}`);

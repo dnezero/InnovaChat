@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from flask import Flask, request, jsonify, g
-from flask_cors import CORS  # Importa Flask-CORS
+from flask_cors import CORS
 import google.generativeai as genai
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -14,15 +14,8 @@ app = Flask(__name__)
 
 # --- INIZIALIZZAZIONE CORS PIÙ GENERALE E ROBUSTA ---
 # Questo abilita CORS per TUTTE le rotte e tutte le origini.
-# È il modo più semplice per assicurarsi che Flask-CORS stia funzionando.
-# Se questo risolve il problema CORS, potremmo poi provare a restringere l'origine
-# nuovamente per maggiore sicurezza.
-CORS(app)
-# Se volessi essere più specifico ma sempre molto permissivo (equivalente a CORS(app)):
-# CORS(app, resources={r"/*": {"origins": "*"}})
-# Oppure, per tornare all'origine specifica se il problema generale si risolve:
-# CORS(app, resources={r"/api/*": {"origins": "https://innovachatfrontend.onrender.com"}})
-
+# Dai tuoi ultimi log, sembra che questo stia funzionando e che il problema CORS sia risolto.
+CORS(app) 
 
 # Ottieni la chiave API di Gemini dalle variabili d'ambiente
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -83,35 +76,42 @@ with app.app_context():
     init_db()
 
 def generate_chat_title(session_id):
-    """Genera un titolo per la chat basato sulla cronologia dei messaggi."""
-    # Nota: get_db() crea una nuova connessione per questo thread in background.
-    db = get_db() 
-    cursor = db.cursor()
+    """
+    Genera un titolo per la chat basato sulla cronologia dei messaggi.
+    Esegue all'interno di un contesto applicativo per accedere al DB.
+    """
+    # Questo blocco `with app.app_context():` è FONDAMENTALE
+    # per far funzionare le operazioni di DB in un thread separato.
+    with app.app_context():
+        db = get_db() 
+        cursor = db.cursor()
 
-    try:
-        cursor.execute("SELECT sender, content FROM messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5", (session_id,))
-        messages = cursor.fetchall()
+        try:
+            cursor.execute("SELECT sender, content FROM messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5", (session_id,))
+            messages = cursor.fetchall()
 
-        if not messages:
-            return 
+            if not messages:
+                return 
 
-        prompt_text = "Please generate a concise title (max 5 words) that summarizes the topic of the following conversation:\n"
-        for msg in reversed(messages): 
-            prompt_text += f"{msg['sender']}: {msg['content']}\n"
-        prompt_text += "Title:"
+            prompt_text = "Please generate a concise title (max 5 words) that summarizes the topic of the following conversation:\n"
+            for msg in reversed(messages): 
+                prompt_text += f"{msg['sender']}: {msg['content']}\n"
+            prompt_text += "Title:"
 
-        response = gemini_model.generate_content(prompt_text)
-        title = response.text.strip()
+            response = gemini_model.generate_content(prompt_text)
+            title = response.text.strip()
 
-        cursor.execute("UPDATE chat_sessions SET title = ? WHERE id = ?", (title, session_id))
-        db.commit()
-        print(f"Chat title updated for session {session_id}: {title}")
+            cursor.execute("UPDATE chat_sessions SET title = ? WHERE id = ?", (title, session_id))
+            db.commit()
+            print(f"Chat title updated for session {session_id}: {title}")
 
-    except Exception as e:
-        print(f"Error generating chat title with Gemini for session {session_id}: {e}")
-    finally:
-        # Assicurati di chiudere la connessione al db per questo thread
-        db.close() 
+        except Exception as e:
+            print(f"Error generating chat title with Gemini for session {session_id}: {e}")
+        finally:
+            # Assicurati di chiudere la connessione al db per questo thread
+            if hasattr(g, '_database'):
+                db.close()
+                del g._database # Rimuove la connessione dal contesto globale per evitare problemi in future richieste
 
 # --- NUOVA ROTTA DI BASE PER IL CONTROLLO DI SALUTE ---
 @app.route('/')
@@ -186,6 +186,8 @@ def chat():
     
     message_count = cursor.execute("SELECT COUNT(*) FROM messages WHERE session_id = ?", (session_id,)).fetchone()[0]
     if message_count > 3:
+        # Avvia la generazione del titolo in un thread separato
+        # che ora gestisce correttamente il contesto applicativo.
         threading.Thread(target=generate_chat_title, args=(session_id,)).start()
 
     return jsonify(response_data), 200
@@ -233,4 +235,4 @@ def generate_title_route():
     return jsonify({"message": "Title generation started in the background."}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, port=os.environ.get('PORT', 5000)) # Usa la porta di Render se disponibile
+    app.run(debug=True, port=os.environ.get('PORT', 5000))

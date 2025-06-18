@@ -1,11 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM fully loaded and parsed. Account system removed.");
+    console.log("DOM fully loaded and parsed. LocalStorage chat sessions and sidebar toggle enabled.");
 
     // Define your backend URLs for local development and deployment.
     // The script will automatically select the correct URL based on the frontend's hostname.
     const LOCAL_BACKEND_URL = 'http://127.0.0.1:5000';
-    // IMPORTANT: REPLACE 'https://innovachat.onrender.com' with YOUR ACTUAL Render backend URL!
-    const RENDER_BACKEND_URL = 'https://innovachat.onrender.com';
+    // IMPORTANT: REPLACE 'https://innovachatfrontend.onrender.com' with YOUR ACTUAL Render frontend URL!
+    // This frontend URL is used by the backend's CORS policy.
+    // The RENDER_BACKEND_URL below is for the frontend to call the backend.
+    const RENDER_BACKEND_URL = 'https://innovachatbackend.onrender.com'; // REPLACE WITH YOUR ACTUAL RENDER BACKEND URL
 
     // Determine the base URL dynamically based on the current hostname.
     const BACKEND_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -14,20 +16,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log(`Using backend URL: ${BACKEND_BASE_URL}`);
 
-    // HTML element references for the chat interface
+    // --- HTML Element References ---
+    const sidebar = document.getElementById('sidebar');
+    const toggleSidebarOpenButton = document.getElementById('toggle-sidebar-button-open');
+    const toggleSidebarCloseButton = document.getElementById('toggle-sidebar-button-close');
+    const newChatButton = document.getElementById('new-chat-button');
+    const chatList = document.getElementById('chat-list');
     const messagesDisplay = document.getElementById('messages-display');
     const userMessageInput = document.getElementById('user-message-input');
     const sendButton = document.getElementById('send-button');
     const stopButton = document.getElementById('stop-button');
-    const chatHeaderTitle = document.querySelector('.chat-header-title');
+    const chatHeaderTitle = document.getElementById('chat-header-title');
     const typingIndicator = document.querySelector('.typing-indicator');
 
-    // Global variable for a single, non-persisted chat session.
-    // Each page load is considered a new "session" for the backend in this simplified setup.
-    let currentSessionId = null; // Will be set by the backend on the first message
+    // --- Global State Variables ---
+    // Array to store chat sessions managed in localStorage
+    let chatSessions = [];
+    // The UUID of the currently active chat in the frontend (local ID)
+    let currentLocalChatId = null; 
 
 
     // --- Utility Functions ---
+
+    /**
+     * Generates a simple UUID (Universally Unique Identifier) for local chat sessions.
+     * This is crucial for uniquely identifying chats in localStorage.
+     */
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
 
     /**
      * Formats a date and time into a readable string (e.g., "DD/MM/YYYY HH:MM").
@@ -51,9 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {string} sender - 'user' or 'bot'.
      * @param {string} content - The raw content of the message (Markdown for bot).
      * @param {string} timestamp - ISO timestamp string.
-     * @param {number} messageId - The message ID (optional, from backend).
      */
-    function addMessageToDisplay(sender, content, timestamp, messageId = null) {
+    function addMessageToDisplay(sender, content, timestamp) {
         if (!messagesDisplay) {
             console.error("messagesDisplay element not found.");
             return;
@@ -61,9 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const messageBubble = document.createElement('div');
         messageBubble.classList.add('message-bubble', sender);
-        if (messageId) {
-            messageBubble.dataset.messageId = messageId;
-        }
 
         const messageContent = document.createElement('div'); // Use 'div' to contain parsed Markdown HTML
         if (sender === 'bot') {
@@ -142,20 +158,239 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesDisplay.scrollTop = messagesDisplay.scrollHeight; // Scroll to the latest message
     }
 
+
+    // --- LocalStorage Chat Management ---
+
     /**
-     * Initializes the chat display with a welcome message for a new session.
-     * This is called on every page load since there's no account system.
+     * Loads chat sessions from localStorage.
+     * @returns {Array} An array of chat session objects.
      */
-    function initializeNewChatDisplay() {
-        messagesDisplay.innerHTML = ''; // Clear any existing messages
-        chatHeaderTitle.textContent = 'InnovaChat'; // Ensure header title is reset
-        typingIndicator.style.display = 'none'; // Ensure typing indicator is hidden
-        addMessageToDisplay('bot', 'Hello! I am InnovaChat. How can I help you?', new Date().toISOString());
-        currentSessionId = null; // Ensure no old session ID is carried over from previous page loads
+    function loadChatSessionsFromLocalStorage() {
+        const storedChats = localStorage.getItem('innovaChatSessions');
+        return storedChats ? JSON.parse(storedChats) : [];
+    }
+
+    /**
+     * Saves the current chatSessions array to localStorage.
+     */
+    function saveChatSessionsToLocalStorage() {
+        localStorage.setItem('innovaChatSessions', JSON.stringify(chatSessions));
+    }
+
+    /**
+     * Finds a local chat object by its local UUID.
+     * @param {string} localChatId - The UUID of the local chat.
+     * @returns {object|undefined} The chat object or undefined if not found.
+     */
+    function findLocalChatById(localChatId) {
+        return chatSessions.find(chat => chat.localId === localChatId);
+    }
+
+    /**
+     * Gets the backend session ID for a given local chat ID.
+     * @param {string} localChatId - The UUID of the local chat.
+     * @returns {number|null} The backend session ID or null if not yet assigned/found.
+     */
+    function getBackendSessionIdForLocalChat(localChatId) {
+        const chat = findLocalChatById(localChatId);
+        return chat ? chat.backendId : null;
+    }
+
+    /**
+     * Adds a new chat session to the local storage array.
+     * @param {string} localId - The UUID for the local chat.
+     * @param {string} title - The title of the chat.
+     * @param {number|null} backendId - The backend session ID, if known.
+     * @param {Array} messages - Initial messages for the chat.
+     */
+    function addLocalChat(localId, title, backendId = null, messages = []) {
+        chatSessions.push({
+            localId: localId,
+            backendId: backendId,
+            title: title,
+            messages: messages,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        });
+        saveChatSessionsToLocalStorage();
+    }
+
+    /**
+     * Updates an existing local chat session.
+     * @param {string} localId - The UUID of the local chat to update.
+     * @param {object} updates - An object containing properties to update (e.g., { title: 'New Title', messages: [...] }).
+     */
+    function updateLocalChat(localId, updates) {
+        const chatIndex = chatSessions.findIndex(chat => chat.localId === localId);
+        if (chatIndex > -1) {
+            chatSessions[chatIndex] = { ...chatSessions[chatIndex], ...updates, updatedAt: new Date().toISOString() };
+            saveChatSessionsToLocalStorage();
+        }
+    }
+
+    /**
+     * Deletes a chat session from local storage and from the backend.
+     * @param {string} localChatId - The UUID of the local chat to delete.
+     */
+    async function deleteChat(localChatId) {
+        const chatToDelete = findLocalChatById(localChatId);
+        if (!chatToDelete) {
+            console.warn("Attempted to delete non-existent local chat:", localChatId);
+            return;
+        }
+
+        const confirmDelete = confirm(`Are you sure you want to delete "${chatToDelete.title}"?`);
+        if (!confirmDelete) return;
+
+        // If it has a backend ID, try to delete from backend first
+        if (chatToDelete.backendId) {
+            try {
+                await apiRequest(`/api/chats/${chatToDelete.backendId}`, 'DELETE', null, false); // No auth for now
+                console.log(`Backend session ${chatToDelete.backendId} deleted.`);
+            } catch (error) {
+                console.error("Error deleting backend session:", error);
+                alert("Failed to delete chat from server. It will only be removed locally.");
+            }
+        }
+
+        // Remove from local array
+        chatSessions = chatSessions.filter(chat => chat.localId !== localChatId);
+        saveChatSessionsToLocalStorage();
+
+        // If the deleted chat was the currently active one, start a new chat
+        if (currentLocalChatId === localChatId) {
+            startNewChat();
+        } else {
+            // Otherwise, just re-render the list to reflect deletion
+            renderChatList();
+        }
+    }
+
+    // --- UI Rendering ---
+
+    /**
+     * Renders the list of chat sessions in the sidebar.
+     * Highlights the currently active chat.
+     */
+    function renderChatList() {
+        chatList.innerHTML = ''; // Clear current list
+
+        // Sort chat sessions by updatedAt, most recent first
+        chatSessions.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+        // Add "New Chat" button at the top of the list implicitly
+        // This is handled by newChatButton element, not list item for simplicity
+
+        chatSessions.forEach(chat => {
+            const listItem = document.createElement('li');
+            listItem.classList.add('chat-list-item');
+            listItem.dataset.localChatId = chat.localId; // Use localId for UI reference
+
+            // Add delete button
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-chat-button');
+            deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>'; // FontAwesome trash icon
+            deleteButton.title = `Delete "${chat.title}"`;
+            deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent selecting chat when clicking delete
+                deleteChat(chat.localId);
+            });
+
+            const chatTitleElement = document.createElement('h4');
+            chatTitleElement.textContent = chat.title || 'Untitled Chat';
+
+            const chatDateElement = document.createElement('p');
+            chatDateElement.textContent = formatTimestamp(chat.updatedAt).split(' ')[0]; // Show only date
+
+            listItem.appendChild(chatTitleElement);
+            listItem.appendChild(chatDateElement);
+            listItem.appendChild(deleteButton); // Add delete button
+
+            listItem.addEventListener('click', () => selectChat(chat.localId)); // On click, select this chat
+
+            chatList.appendChild(listItem);
+        });
+
+        // Highlight the currently active chat in the UI
+        if (currentLocalChatId) {
+            const activeItem = document.querySelector(`.chat-list-item[data-local-chat-id="${currentLocalChatId}"]`);
+            if (activeItem) {
+                activeItem.classList.add('active');
+                // Ensure the active item is visible if the list is scrollable
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+
+    /**
+     * Displays messages for the given local chat ID in the messages display area.
+     * @param {string} localChatId - The UUID of the local chat.
+     */
+    function displayMessages(localChatId) {
+        messagesDisplay.innerHTML = ''; // Clear current messages
+        const chat = findLocalChatById(localChatId);
+
+        if (chat && chat.messages.length > 0) {
+            chat.messages.forEach(msg => {
+                addMessageToDisplay(msg.sender, msg.content, msg.timestamp);
+            });
+        } else {
+            // Welcome message for a new or empty chat
+            addMessageToDisplay('bot', 'Hello! I am InnovaChat. How can I help you?', new Date().toISOString());
+        }
+        messagesDisplay.scrollTop = messagesDisplay.scrollHeight; // Scroll to bottom
+    }
+
+    // --- Sidebar Toggle Logic ---
+    function toggleSidebar() {
+        sidebar.classList.toggle('active');
+    }
+
+    // --- Core Chat Logic ---
+
+    /**
+     * Selects a chat session, updates the header, and displays its messages.
+     * @param {string} localChatId - The UUID of the local chat to select.
+     */
+    function selectChat(localChatId) {
+        console.log("Selecting chat:", localChatId);
+        // Remove 'active' class from all existing chat list items
+        document.querySelectorAll('.chat-list-item').forEach(item => {
+            item.classList.remove('active');
+        });
+
+        // Add 'active' class to the newly selected item
+        const selectedItem = document.querySelector(`.chat-list-item[data-local-chat-id="${localChatId}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('active');
+        }
+
+        currentLocalChatId = localChatId;
+        const chat = findLocalChatById(localChatId);
+        chatHeaderTitle.textContent = chat ? chat.title : 'New Chat'; // Update header title
+        displayMessages(localChatId); // Display messages for the selected chat
+
+        // On mobile, hide sidebar after selecting a chat
+        if (window.innerWidth <= 768) {
+            sidebar.classList.remove('active');
+        }
+    }
+
+    /**
+     * Initializes a new chat session.
+     */
+    function startNewChat() {
+        const newLocalId = generateUUID();
+        // Add a placeholder chat to local storage immediately
+        addLocalChat(newLocalId, 'New Chat', null, []); // Title will be updated by AI later
+        renderChatList(); // Update sidebar immediately
+        selectChat(newLocalId); // Select the new chat
+        userMessageInput.focus(); // Focus input for new message
     }
 
     /**
      * Sends a user message to the backend and handles the bot's response.
+     * Updates the current chat session in localStorage.
      */
     async function sendMessage() {
         const messageContent = userMessageInput.value.trim();
@@ -163,8 +398,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return; // Do not send empty messages
         }
 
-        // Display user message immediately
-        addMessageToDisplay('user', messageContent, new Date().toISOString());
+        // Get the current chat object or create a new one if this is the very first message
+        let currentChat = findLocalChatById(currentLocalChatId);
+        if (!currentChat) {
+            // This case should ideally be handled by selectChat/startNewChat, but as a fallback
+            console.warn("No active chat selected, starting new one before sending message.");
+            const newLocalId = generateUUID();
+            addLocalChat(newLocalId, 'New Chat', null, []);
+            currentChat = findLocalChatById(newLocalId);
+            currentLocalChatId = newLocalId;
+            renderChatList(); // Re-render to show new chat in sidebar
+            selectChat(newLocalId); // Select it
+        }
+
+        // Add user message to the local chat object first
+        const userMessage = { sender: 'user', content: messageContent, timestamp: new Date().toISOString() };
+        currentChat.messages.push(userMessage);
+        updateLocalChat(currentLocalChatId, { messages: currentChat.messages }); // Save to localStorage
+
+        // Display user message immediately (already added to local chat and saved)
+        addMessageToDisplay('user', messageContent, userMessage.timestamp);
         userMessageInput.value = ''; // Clear input field
         
         // Disable input and show loading indicators
@@ -174,22 +427,32 @@ document.addEventListener('DOMContentLoaded', () => {
         typingIndicator.style.display = 'block'; // Show typing indicator
 
         try {
+            const backendSessionId = getBackendSessionIdForLocalChat(currentLocalChatId);
             const requestData = {
                 message: messageContent,
-                sessionId: currentSessionId // Will be null for the first message of a new page load
+                sessionId: backendSessionId // Send backend ID, which is null if new
             };
 
-            // Send message to the backend API. No authentication token is needed.
-            const response = await apiRequest('/api/chat', 'POST', requestData);
+            const response = await apiRequest('/api/chat', 'POST', requestData, false); // No auth token required by backend now
             
-            // If the backend returned a new session ID (for the first message sent), save it
-            if (response.sessionId && currentSessionId === null) {
-                currentSessionId = response.sessionId;
-                console.log(`New session created by backend with ID: ${currentSessionId}`);
+            // If the backend returned a new session ID, update the local chat object
+            if (response.sessionId && backendSessionId === null) {
+                currentChat.backendId = response.sessionId; // Link local chat to backend ID
+                // If AI-generated title is returned, update it
+                if (response.sessionTitle) {
+                    currentChat.title = response.sessionTitle;
+                }
+                updateLocalChat(currentLocalChatId, { backendId: currentChat.backendId, title: currentChat.title });
+                renderChatList(); // Re-render sidebar to update the new chat's title/active status
             }
 
+            // Add bot's response to the local chat object
+            const botMessage = { sender: 'bot', content: response.botMessage.content, timestamp: response.botMessage.timestamp };
+            currentChat.messages.push(botMessage);
+            updateLocalChat(currentLocalChatId, { messages: currentChat.messages }); // Save to localStorage
+
             // Display the bot's response
-            addMessageToDisplay('bot', response.botMessage.content, response.botMessage.timestamp, response.botMessage.id);
+            addMessageToDisplay('bot', botMessage.content, botMessage.timestamp);
 
         } catch (error) {
             console.error("Error sending message:", error);
@@ -207,7 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Sends a request to the backend API.
-     * No authentication headers are included as there's no account system.
      * @param {string} endpoint - The specific API endpoint (e.g., '/api/chat').
      * @param {string} method - The HTTP method ('GET', 'POST', etc.).
      * @param {object} data - Data to send in the request body (only for POST/PUT).
@@ -241,41 +503,48 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`[API Response] ${url}: Status ${response.status}`, responseData);
 
             if (!response.ok) {
-                // Generic server error handling for non-2xx responses
                 throw new Error(responseData.message || `Server error: ${response.status}`);
             }
             return responseData;
         } catch (error) {
             console.error(`[API Error] Request to ${url} failed:`, error);
-            // Re-throw the error so the calling function (sendMessage) can catch and display it
             throw error; 
         }
     }
 
     // --- Event Handling ---
 
-    // Event listener for the "Send" button click
-    sendButton.addEventListener('click', () => {
-        console.log("Send button clicked.");
-        sendMessage();
-    });
+    // Sidebar toggle buttons
+    if (toggleSidebarOpenButton) {
+        toggleSidebarOpenButton.addEventListener('click', toggleSidebar);
+    }
+    if (toggleSidebarCloseButton) {
+        toggleSidebarCloseButton.addEventListener('click', toggleSidebar);
+    }
 
-    // Event listener for keyboard input in the message textarea
-    // Sends message on Enter key press (unless Shift is also held for a new line)
-    userMessageInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevent default Enter behavior (new line)
-            console.log("Enter key pressed, sending message.");
-            sendMessage();
-        }
-    });
+    // New Chat Button
+    if (newChatButton) {
+        newChatButton.addEventListener('click', startNewChat);
+    }
 
-    // Event listener for the "Stop" button
-    // In this simplified version, it only affects the UI (hides typing indicator, re-enables input)
-    // Actual API interruption would require backend support (e.g., WebSocket cancellation)
+    // Send message with "Send" button
+    if (sendButton) {
+        sendButton.addEventListener('click', sendMessage);
+    }
+
+    // Send message with Enter key (and Shift+Enter for new line)
+    if (userMessageInput) {
+        userMessageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                sendMessage();
+            }
+        });
+    }
+
+    // Handle "Stop" button (UI only)
     if (stopButton) { 
         stopButton.addEventListener('click', () => {
-            console.log("Stop button clicked (UI only).");
             stopButton.style.display = 'none';
             if (typingIndicator) {
                 typingIndicator.style.display = 'none';
@@ -286,6 +555,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize the chat display when the page loads
-    initializeNewChatDisplay();
+    // --- Initialization ---
+    // Load existing chat sessions on page load
+    chatSessions = loadChatSessionsFromLocalStorage();
+
+    if (chatSessions.length > 0) {
+        // If there are existing chats, select the most recent one
+        selectChat(chatSessions[0].localId);
+    } else {
+        // If no chats exist, start a new one (will create a placeholder local chat)
+        startNewChat();
+    }
+    
+    // Initial render of the chat list
+    renderChatList();
 });

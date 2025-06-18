@@ -8,34 +8,43 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <!-- Your custom CSS. Load it after highlight.js to apply your overrides and custom styles. -->
     <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome for sidebar toggle icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <!-- The main chat container, designed to take up the full screen -->
+    <!-- The main chat container -->
     <div class="chat-container">
-        <!-- The main chat area, containing header, messages display, and input -->
+        <!-- Sidebar for chat sessions -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3 class="sidebar-title">My Chats</h3>
+                <button class="toggle-sidebar-button" id="toggle-sidebar-button-close" title="Close Sidebar">
+                    <i class="fas fa-times"></i> <!-- Close icon -->
+                </button>
+            </div>
+            
+            <button class="new-chat-button" id="new-chat-button">
+                <i class="fas fa-plus"></i> New Chat
+            </button>
+            
+            <ul class="chat-list" id="chat-list">
+                <!-- Chat session items will be dynamically loaded here by JavaScript -->
+            </ul>
+        </div>
+
+        <!-- Main chat area -->
         <div class="chat-main">
-            <!-- Chat header section -->
             <div class="chat-header">
-                <h2 class="chat-header-title">InnovaChat</h2>
-                <!-- Optional: You could add a session ID display here if desired, but removed for simplicity:
-                <p class="chat-header-info">Session ID: <span id="session-id-display">N/A</span></p>
-                -->
+                <!-- Sidebar toggle button for mobile/collapsed view -->
+                <button class="toggle-sidebar-button" id="toggle-sidebar-button-open" title="Open Sidebar">
+                    <i class="fas fa-bars"></i> <!-- Menu icon -->
+                </button>
+                <h2 class="chat-header-title" id="chat-header-title">New Chat</h2>
             </div>
 
             <!-- Area where messages are displayed -->
             <div class="messages-display" id="messages-display">
                 <!-- Messages will be dynamically loaded here by JavaScript -->
-                <!-- Example message structure (for visual reference):
-                <div class="message-bubble user">
-                    <p>Hello bot, how are you?</p>
-                    <span class="message-timestamp">09/06/2025 01:30</span>
-                </div>
-                <div class="message-bubble bot">
-                    <p>I'm fine, thank you!</p>
-                    <span class="message-timestamp">09/06/2025 01:31</span>
-                </div>
-                -->
-                <!-- Typing indicator for the bot -->
                 <div class="typing-indicator" style="display: none;">
                     Bot is typing...
                 </div>
@@ -43,11 +52,8 @@
 
             <!-- Message input area at the bottom -->
             <div class="message-input-area">
-                <!-- Textarea for user input, grows vertically up to max-height -->
                 <textarea id="user-message-input" placeholder="Type your message..." rows="1"></textarea>
-                <!-- Send button -->
                 <button id="send-button">Send</button>
-                <!-- Stop button (hidden by default, shown when bot is typing) -->
                 <button id="stop-button" style="display: none;">Stop</button>
             </div>
         </div>
@@ -58,11 +64,6 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Highlight.js CDN for code syntax highlighting -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <!-- Optional: Include specific language definitions if you want to explicitly load them for Highlight.js.
-         Otherwise, Highlight.js attempts to auto-detect.
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
-    -->
     <!-- Your main application script -->
     <script src="script.js"></script>
 </body>

@@ -1,56 +1,71 @@
 import os
 import sqlite3
-from flask import Flask, request, jsonify, g
-from flask_cors import CORS
-import google.generativeai as genai
 from datetime import datetime, timezone
-from dotenv import load_dotenv
-import threading
 
-# Carica le variabili d'ambiente dal file .env (per lo sviluppo locale)
+from flask import Flask, request, jsonify, g
+from flask_cors import CORS # For handling cross-origin requests
+
+import google.generativeai as genai
+
+# Load environment variables from .env file (for local development)
+from dotenv import load_dotenv
 load_dotenv()
 
+# --- Flask Configuration ---
 app = Flask(__name__)
 
-# --- INIZIALIZZAZIONE CORS PIÙ GENERALE E ROBUSTA ---
-# Questo abilita CORS per TUTTE le rotte e tutte le origini.
-# Dai tuoi ultimi log, sembra che questo stia funzionando e che il problema CORS sia risolto.
-CORS(app) 
+# Configure CORS to allow requests from both local and Render frontend URLs.
+# IMPORTANT: REPLACE 'https://innovachatfrontend.onrender.com' with YOUR ACTUAL Render frontend URL!
+CORS(app, resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "https://innovachatfrontend.onrender.com"]}})
 
-# Ottieni la chiave API di Gemini dalle variabili d'ambiente
+# --- Google Gemini API Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("Error: GEMINI_API_KEY not found in .env file or environment variables. Ensure it's set on Render.")
+    # In a production environment like Render, GEMINI_API_KEY should be set directly
+    # as an environment variable in Render's dashboard, not from .env.
+    # This error will only trigger if it's missing during local dev or in Render config.
+    raise ValueError("Error: GEMINI_API_KEY not found. Ensure it's set in .env (local) or Render environment variables (deployment).")
 
-# Configura l'API Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Initialize Gemini model
 try:
     gemini_model = genai.GenerativeModel('gemini-2.0-flash')
     print("Gemini model initialized: gemini-2.0-flash")
 except Exception as e:
     print(f"Error initializing gemini-2.0-flash model: {e}")
+    # Raise a critical error if model initialization fails
     raise ValueError(f"Critical Error: Unable to initialize Gemini model. Check model name and API Key. Details: {e}")
 
+
+# --- SQLite Database Configuration ---
+# Note: SQLite on Render's free tier is ephemeral. Data will be lost on
+# each deployment or after periods of inactivity. For persistent data,
+# consider a managed database service like PostgreSQL offered by Render.
 DATABASE = 'chat_app.db'
 
 def get_db():
+    """Returns a SQLite database connection."""
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row # Permette di accedere alle colonne per nome
+        db.row_factory = sqlite3.Row # To access columns by name (e.g., row['content'])
     return db
 
 @app.teardown_appcontext
 def close_connection(exception):
+    """Closes the database connection at the end of the request context."""
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
 def init_db():
-    with app.app_context():
+    """Initializes the database by creating the necessary tables."""
+    with app.app_app_context(): # Use app_context() to run outside a request
         db = get_db()
         cursor = db.cursor()
+        # The 'users' table and 'user_id' in chat_sessions are removed
+        # as there is no account system.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +78,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id INTEGER NOT NULL,
-                sender TEXT NOT NULL,
+                sender TEXT NOT NULL, -- 'user' or 'bot'
                 content TEXT NOT NULL,
                 timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (session_id) REFERENCES chat_sessions (id)
@@ -71,168 +86,96 @@ def init_db():
         ''')
         db.commit()
 
-# Inizializza il database all'avvio dell'applicazione
+# Initialize the database on application startup
 with app.app_context():
     init_db()
 
-def generate_chat_title(session_id):
-    """
-    Genera un titolo per la chat basato sulla cronologia dei messaggi.
-    Esegue all'interno di un contesto applicativo per accedere al DB.
-    """
-    # Questo blocco `with app.app_context():` è FONDAMENTALE
-    # per far funzionare le operazioni di DB in un thread separato.
-    with app.app_context():
-        db = get_db() 
-        cursor = db.cursor()
+# --- API Routes ---
 
-        try:
-            cursor.execute("SELECT sender, content FROM messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5", (session_id,))
-            messages = cursor.fetchall()
-
-            if not messages:
-                return 
-
-            prompt_text = "Please generate a concise title (max 5 words) that summarizes the topic of the following conversation:\n"
-            for msg in reversed(messages): 
-                prompt_text += f"{msg['sender']}: {msg['content']}\n"
-            prompt_text += "Title:"
-
-            response = gemini_model.generate_content(prompt_text)
-            title = response.text.strip()
-
-            cursor.execute("UPDATE chat_sessions SET title = ? WHERE id = ?", (title, session_id))
-            db.commit()
-            print(f"Chat title updated for session {session_id}: {title}")
-
-        except Exception as e:
-            print(f"Error generating chat title with Gemini for session {session_id}: {e}")
-        finally:
-            # Assicurati di chiudere la connessione al db per questo thread
-            if hasattr(g, '_database'):
-                db.close()
-                del g._database # Rimuove la connessione dal contesto globale per evitare problemi in future richieste
-
-# --- NUOVA ROTTA DI BASE PER IL CONTROLLO DI SALUTE ---
-@app.route('/')
-def home():
-    return "InnovaChat Backend is running!", 200
-
-# Rotta per gestire la conversazione chat
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    """
+    Handles chat messages, manages session creation, and interacts with the Gemini API.
+    Does not require authentication.
+    """
     data = request.get_json()
     user_message = data.get('message')
-    session_id = data.get('sessionId')
+    session_id = data.get('sessionId') # Will be null for the first message of a new page load
 
     if not user_message:
-        return jsonify({"message": "Il contenuto del messaggio non può essere vuoto."}), 400
+        return jsonify({"message": "Message content cannot be empty."}), 400
 
     db = get_db()
     cursor = db.cursor()
     new_session_created = False
 
     if session_id:
+        # Check if the session exists (important if the DB was reset on Render)
         session_exists = cursor.execute("SELECT 1 FROM chat_sessions WHERE id = ?", (session_id,)).fetchone()
         if not session_exists:
-            cursor.execute("INSERT INTO chat_sessions (title) VALUES (?)", ("Nuova Chat " + datetime.now().strftime("%Y-%m-%d %H:%M"),))
+            # If session doesn't exist (e.g., DB reset), create a new one
+            print(f"WARN: Session ID {session_id} not found in DB, creating new session.")
+            cursor.execute("INSERT INTO chat_sessions (title) VALUES (?)", ("New Chat " + datetime.now().strftime("%Y-%m-%d %H:%M"),))
             db.commit()
             session_id = cursor.lastrowid
             new_session_created = True
     else:
-        cursor.execute("INSERT INTO chat_sessions (title) VALUES (?)", ("Nuova Chat " + datetime.now().strftime("%Y-%m-%d %H:%M"),))
+        # Create a brand new chat session if no ID was provided
+        cursor.execute("INSERT INTO chat_sessions (title) VALUES (?)", ("New Chat " + datetime.now().strftime("%Y-%m-%d %H:%M"),))
         db.commit()
         session_id = cursor.lastrowid
         new_session_created = True
 
+    # Save the user's message
     cursor.execute("INSERT INTO messages (session_id, sender, content) VALUES (?, ?, ?)", (session_id, 'user', user_message))
     db.commit()
+    user_message_id = cursor.lastrowid # Get the ID of the newly inserted user message
 
+    # Fetch chat history for context (all messages in the current session)
     history = cursor.execute("SELECT sender, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (session_id,)).fetchall()
     
-    system_prompt = {
-        'role': 'user',
-        'parts': ["Your creator is dnezero. If anyone asks who my creator is, always answer that my creator is dnezero. Answer this only when the user asks to."]
-    }
-
-    gemini_history = [system_prompt]
+    # Prepare chat history for Gemini in the expected format:
+    # [{'role': 'user', 'parts': ['User query']}, {'role': 'model', 'parts': ['Model response']}, ...]
+    gemini_history = []
     for msg in history:
-        gemini_history.append({'role': 'user' if msg['sender'] == 'user' else 'model', 'parts': [msg['content']]})
+        # Map our 'sender' (user/bot) to Gemini's 'role' (user/model)
+        role = 'user' if msg['sender'] == 'user' else 'model'
+        gemini_history.append({'role': role, 'parts': [msg['content']]})
 
+    # Generate bot response using Gemini
     try:
+        # Start a chat session with the model and provide the prepared history
         chat_session = gemini_model.start_chat(history=gemini_history)
-        response = chat_session.send_message(user_message)
+        response = chat_session.send_message(user_message) # Send the latest user message
         bot_response_content = response.text
     except Exception as e:
-        print(f"Errore nella chiamata all'API Gemini: {e}")
-        db.rollback()
-        return jsonify({"message": "Errore nella generazione della risposta del bot. Riprova."}), 500
+        print(f"Error calling Gemini API: {e}")
+        db.rollback() # Rollback the user message if bot response fails (optional but good for consistency)
+        return jsonify({"message": "Error generating bot response. Please try again."}), 500
 
+    # Save the bot's message
     cursor.execute("INSERT INTO messages (session_id, sender, content) VALUES (?, ?, ?)", (session_id, 'bot', bot_response_content))
+    # Update the session's 'updated_at' timestamp
     cursor.execute("UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
     db.commit()
-    bot_message_id = cursor.lastrowid
+    bot_message_id = cursor.lastrowid # Get the ID of the newly inserted bot message
 
     response_data = {
         "botMessage": {
             "id": bot_message_id,
             "sender": "bot",
             "content": bot_response_content,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat() # Use UTC for consistency
         }
     }
+    # Only include sessionId in the response if a new session was actually created
     if new_session_created:
         response_data['sessionId'] = session_id
     
-    message_count = cursor.execute("SELECT COUNT(*) FROM messages WHERE session_id = ?", (session_id,)).fetchone()[0]
-    if message_count > 3:
-        # Avvia la generazione del titolo in un thread separato
-        # che ora gestisce correttamente il contesto applicativo.
-        threading.Thread(target=generate_chat_title, args=(session_id,)).start()
-
     return jsonify(response_data), 200
 
-# Rotta per recuperare i messaggi di una sessione chat
-@app.route('/api/messages', methods=['GET'])
-def get_messages():
-    session_id = request.args.get('sessionId')
-    
-    if not session_id:
-        return jsonify({"message": "Session ID è richiesto."}), 400
-
-    db = get_db()
-    cursor = db.cursor()
-
-    try:
-        cursor.execute("SELECT id, sender, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (session_id,))
-        messages_db = cursor.fetchall()
-        
-        messages = []
-        for msg in messages_db:
-            messages.append({
-                "id": msg['id'],
-                "sender": msg['sender'],
-                "content": msg['content'],
-                "timestamp": msg['timestamp']
-            })
-        
-        return jsonify({"messages": messages}), 200
-
-    except Exception as e:
-        print(f"Errore nel recupero dei messaggi per la sessione {session_id}: {e}")
-        return jsonify({"message": "Errore interno del server durante il recupero dei messaggi."}), 500
-
-# Rotta per generare manualmente il titolo di una chat
-@app.route('/api/generate_title', methods=['POST'])
-def generate_title_route():
-    data = request.get_json()
-    session_id = data.get('sessionId')
-
-    if not session_id:
-        return jsonify({"message": "Session ID is required."}), 400
-
-    threading.Thread(target=generate_chat_title, args=(session_id,)).start()
-    return jsonify({"message": "Title generation started in the background."}), 200
-
+# Main entry point for Flask app
 if __name__ == '__main__':
-    app.run(debug=True, port=os.environ.get('PORT', 5000))
+    # This block is for local development only.
+    # When deploying to Render, a WSGI server like Gunicorn will manage app execution.
+    app.run(debug=True, port=5000)

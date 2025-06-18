@@ -3,100 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InnovaChat - Best AI Service Ever Made</title>
+    <title>InnovaChat</title>
+    <!-- Highlight.js CSS for codeblock theme. Use atom-one-dark for a dark, readable theme. -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <!-- Your custom CSS. Load it after highlight.js to apply your overrides and custom styles. -->
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Specific styles for the landing page */
-        body {
-            background: linear-gradient(120deg, #5d8aff 0%, #ff7eb3 100%);
-            background-size: 200% 200%;
-            animation: gradientMove 12s ease-in-out infinite;
-            color: #e3e6f3;
-            min-height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            font-size: 16px;
-            line-height: 1.6;
-            display: flex;
-            flex-direction: column; /* Stack content vertically */
-            justify-content: center;
-            align-items: center;
-            font-family: 'Inter', sans-serif !important;
-            text-align: center; /* Center text */
-        }
-
-        .landing-title {
-            color: #e3e6f3;
-            font-size: 5em;
-            font-weight: 900;
-            margin-bottom: 0.5em;
-            text-shadow: 0 4px 16px #5d8aff;
-            animation: glowText 2.5s infinite alternate;
-        }
-
-        .landing-description {
-            font-size: 1.6em;
-            margin-bottom: 2em;
-            max-width: 800px; /* Limit width for readability */
-            padding: 0 1em; /* Add horizontal padding */
-        }
-
-        .landing-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 2em;
-            margin-bottom: 3em;
-        }
-
-        .landing-button {
-            padding: 1em 2.5em;
-            border: none;
-            border-radius: 0.75em;
-            cursor: pointer;
-            font-size: 1.2em;
-            font-weight: 700;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-            transition: background 0.3s, transform 0.2s, box-shadow 0.2s;
-            outline: none;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .get-started-button {
-            background: #fff;
-            color: #5d8aff;
-        }
-
-        .join-discord-button {
-            background: #5865F2;
-            color: #fff;
-        }
-
-        .landing-button:hover {
-            transform: translateY(-0.25em) scale(1.04);
-            box-shadow: 0 6px 24px #5d8aff, 0 0 16px #7eaaff;
-        }
-
-        .landing-button:active {
-            transform: translateY(0) scale(0.98);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-        }
-
-        /* Remove widgets */
-        .widgets-container {
-            display: none;
-        }
-    </style>
 </head>
 <body>
-    <h1 class="landing-title">InnovaChat</h1>
-    <p class="landing-description">
-        Experience the <strong>Best AI Service Ever Made.</strong> InnovaChat offers cutting-edge AI solutions for all your needs.
-    </p>
+    <!-- The main chat container, designed to take up the full screen -->
+    <div class="chat-container">
+        <!-- The main chat area, containing header, messages display, and input -->
+        <div class="chat-main">
+            <!-- Chat header section -->
+            <div class="chat-header">
+                <h2 class="chat-header-title">InnovaChat</h2>
+                <!-- Optional: You could add a session ID display here if desired, but removed for simplicity:
+                <p class="chat-header-info">Session ID: <span id="session-id-display">N/A</span></p>
+                -->
+            </div>
 
-    <div class="landing-buttons">
-        <a href="chat.html" class="landing-button get-started-button">Get Started</a>
-        <a href="https://discord.gg/CaxQgkc8YB" target="_blank" class="landing-button join-discord-button">Join our Discord</a>
+            <!-- Area where messages are displayed -->
+            <div class="messages-display" id="messages-display">
+                <!-- Messages will be dynamically loaded here by JavaScript -->
+                <!-- Example message structure (for visual reference):
+                <div class="message-bubble user">
+                    <p>Hello bot, how are you?</p>
+                    <span class="message-timestamp">09/06/2025 01:30</span>
+                </div>
+                <div class="message-bubble bot">
+                    <p>I'm fine, thank you!</p>
+                    <span class="message-timestamp">09/06/2025 01:31</span>
+                </div>
+                -->
+                <!-- Typing indicator for the bot -->
+                <div class="typing-indicator" style="display: none;">
+                    Bot is typing...
+                </div>
+            </div>
+
+            <!-- Message input area at the bottom -->
+            <div class="message-input-area">
+                <!-- Textarea for user input, grows vertically up to max-height -->
+                <textarea id="user-message-input" placeholder="Type your message..." rows="1"></textarea>
+                <!-- Send button -->
+                <button id="send-button">Send</button>
+                <!-- Stop button (hidden by default, shown when bot is typing) -->
+                <button id="stop-button" style="display: none;">Stop</button>
+            </div>
+        </div>
     </div>
+
+    <!-- JavaScript Libraries -->
+    <!-- Marked.js CDN for Markdown to HTML conversion -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Highlight.js CDN for code syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Optional: Include specific language definitions if you want to explicitly load them for Highlight.js.
+         Otherwise, Highlight.js attempts to auto-detect.
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    -->
+    <!-- Your main application script -->
+    <script src="script.js"></script>
 </body>
 </html>

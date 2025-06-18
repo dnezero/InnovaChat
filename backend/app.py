@@ -15,9 +15,11 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configure CORS to allow requests from both local and Render frontend URLs.
-# IMPORTANT: YOU MUST REPLACE 'https://innovachatfrontend.onrender.com' below
-# with YOUR ACTUAL, EXACT Public URL of your Render FRONTEND (Static Site).
-# Example: If your frontend URL is https://my-awesome-chat-frontend.onrender.com, use that.
+# >>> IMPORTANT: YOU MUST REPLACE THE PLACEHOLDER BELOW
+# >>> with THE EXACT PUBLIC URL OF YOUR RENDER FRONTEND (STATIC SITE)!!!
+# >>> GO TO YOUR RENDER DASHBOARD, CLICK ON YOUR FRONTEND SERVICE, AND COPY ITS "PUBLIC URL".
+# >>> Example: If your frontend URL on Render is https://my-frontend-app-xyz.onrender.com,
+# >>> then the list should be: ["http://127.0.0.1:8000", "https://my-frontend-app-xyz.onrender.com"]
 CORS(app, resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "https://innovachatfrontend.onrender.com"]}})
 
 # --- Google Gemini API Configuration ---

@@ -61,7 +61,8 @@ def close_connection(exception):
 
 def init_db():
     """Initializes the database by creating the necessary tables."""
-    with app.app_app_context(): # Use app_context() to run outside a request
+    # Corrected typo: 'app.app_app_context()' changed to 'app.app_context()'
+    with app.app_context(): # Use app_context() to run outside a request
         db = get_db()
         cursor = db.cursor()
         # The 'users' table and 'user_id' in chat_sessions are removed

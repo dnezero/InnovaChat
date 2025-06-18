@@ -21,6 +21,9 @@ CORS(app, resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "https://i
 # --- Google Gemini API Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
+    # In a production environment like Render, GEMINI_API_KEY should be set directly
+    # as an environment variable in Render's dashboard, not from .env.
+    # This error will only trigger if it's missing during local dev or in Render config.
     raise ValueError("Error: GEMINI_API_KEY not found. Ensure it's set in .env (local) or Render environment variables (deployment).")
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -63,6 +66,7 @@ def close_connection(exception):
 
 def init_db():
     """Initializes the database by creating the necessary tables."""
+    # Corrected typo: 'app.app_app_context()' changed to 'app.app_context()'
     with app.app_context(): # Use app_context() to run outside a request
         db = get_db()
         cursor = db.cursor()

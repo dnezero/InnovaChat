@@ -4,10 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Define your backend URLs for local development and deployment.
     // The script will automatically select the correct URL based on the frontend's hostname.
     const LOCAL_BACKEND_URL = 'http://127.0.0.1:5000';
-    // IMPORTANT: REPLACE 'https://innovachatfrontend.onrender.com' with YOUR ACTUAL Render frontend URL!
-    // This frontend URL is used by the backend's CORS policy.
-    // The RENDER_BACKEND_URL below is for the frontend to call the backend.
-    const RENDER_BACKEND_URL = 'https://innovachatbackend.onrender.com'; // REPLACE WITH YOUR ACTUAL RENDER BACKEND URL
+    // IMPORTANT: REPLACE 'https://innovachatbackend.onrender.com' with YOUR ACTUAL Render backend URL!
+    const RENDER_BACKEND_URL = 'https://innovachat.onrender.com'; 
 
     // Determine the base URL dynamically based on the current hostname.
     const BACKEND_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -245,7 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // If it has a backend ID, try to delete from backend first
         if (chatToDelete.backendId) {
             try {
-                await apiRequest(`/api/chats/${chatToDelete.backendId}`, 'DELETE', null, false); // No auth for now
+                // apiRequest will handle errors, no auth needed
+                await apiRequest(`/api/chats/${chatToDelete.backendId}`, 'DELETE', null); 
                 console.log(`Backend session ${chatToDelete.backendId} deleted.`);
             } catch (error) {
                 console.error("Error deleting backend session:", error);
@@ -278,13 +277,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort chat sessions by updatedAt, most recent first
         chatSessions.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
-        // Add "New Chat" button at the top of the list implicitly
-        // This is handled by newChatButton element, not list item for simplicity
-
         chatSessions.forEach(chat => {
             const listItem = document.createElement('li');
             listItem.classList.add('chat-list-item');
             listItem.dataset.localChatId = chat.localId; // Use localId for UI reference
+
+            // Create container for title and date
+            const textContainer = document.createElement('div');
+            textContainer.classList.add('chat-item-text'); // Optional: for styling text vs button
+
+            const chatTitleElement = document.createElement('h4');
+            chatTitleElement.textContent = chat.title || 'Untitled Chat';
+
+            const chatDateElement = document.createElement('p');
+            chatDateElement.textContent = formatTimestamp(chat.updatedAt).split(' ')[0]; // Show only date
+
+            textContainer.appendChild(chatTitleElement);
+            textContainer.appendChild(chatDateElement);
+            listItem.appendChild(textContainer);
 
             // Add delete button
             const deleteButton = document.createElement('button');
@@ -295,15 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation(); // Prevent selecting chat when clicking delete
                 deleteChat(chat.localId);
             });
-
-            const chatTitleElement = document.createElement('h4');
-            chatTitleElement.textContent = chat.title || 'Untitled Chat';
-
-            const chatDateElement = document.createElement('p');
-            chatDateElement.textContent = formatTimestamp(chat.updatedAt).split(' ')[0]; // Show only date
-
-            listItem.appendChild(chatTitleElement);
-            listItem.appendChild(chatDateElement);
             listItem.appendChild(deleteButton); // Add delete button
 
             listItem.addEventListener('click', () => selectChat(chat.localId)); // On click, select this chat
@@ -338,6 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Welcome message for a new or empty chat
             addMessageToDisplay('bot', 'Hello! I am InnovaChat. How can I help you?', new Date().toISOString());
         }
+        // Always ensure typing indicator is at the bottom after messages
+        messagesDisplay.appendChild(typingIndicator); 
         messagesDisplay.scrollTop = messagesDisplay.scrollHeight; // Scroll to bottom
     }
 
@@ -433,7 +436,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionId: backendSessionId // Send backend ID, which is null if new
             };
 
-            const response = await apiRequest('/api/chat', 'POST', requestData, false); // No auth token required by backend now
+            // No authentication token is needed as per the simplified backend
+            const response = await apiRequest('/api/chat', 'POST', requestData);
             
             // If the backend returned a new session ID, update the local chat object
             if (response.sessionId && backendSessionId === null) {
@@ -555,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Initialization ---
+    // Initial load logic:
     // Load existing chat sessions on page load
     chatSessions = loadChatSessionsFromLocalStorage();
 

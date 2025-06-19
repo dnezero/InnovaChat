@@ -34,7 +34,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize Gemini model for chat responses
 try:
-    gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+    gemini_model = genai.GenerativeModel('gemini-2.5-pro-preview-03-25')
     print("Gemini chat model initialized: gemini-2.0-flash")
 except Exception as e:
     print(f"Error initializing gemini-2.0-flash chat model: {e}")

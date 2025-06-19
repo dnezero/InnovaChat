@@ -19,7 +19,7 @@ app = Flask(__name__)
 # >>> with THE EXACT PUBLIC URL OF YOUR RENDER FRONTEND (STATIC SITE)!!!
 # >>> GO TO YOUR RENDER DASHBOARD, CLICK ON YOUR FRONTEND SERVICE, AND COPY ITS "PUBLIC URL".
 # >>> Example: If your frontend URL on Render is https://my-frontend-app-xyz.onrender.com,
-# >>> then the list should be: ["http://127.0.0.1:8000", "https://my-frontend-app-xyz.onrender.com"]
+# >>> then the list should be: ["http://172.0.0.1:8000", "https://innovachatfrontend.onrender.com"]
 CORS(app, resources={r"/api/*": {"origins": ["http://127.0.0.1:8000", "https://innovachatfrontend.onrender.com"]}})
 
 # --- Google Gemini API Configuration ---
@@ -32,15 +32,20 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Define the system instruction for the AI
+# This tells the AI its name, creator, and when to reveal this info.
+SYSTEM_INSTRUCTION = "Sei InnovaChat, un assistente AI utile. Il tuo creatore è dnezero. Dovresti condividere informazioni sul tuo nome o creatore solo quando esplicitamente richiesto dall'utente."
+
 # Initialize Gemini model for chat responses
 try:
-    gemini_model = genai.GenerativeModel('gemini-2.5-pro-preview-03-25')
-    print("Gemini chat model initialized: gemini-2.0-flash")
+    gemini_model = genai.GenerativeModel('gemini-2.5-pro-preview-03-25', system_instruction=SYSTEM_INSTRUCTION)
+    print("Gemini chat model initialized: gemini-2.5-pro-preview-03-25 with system instruction.")
 except Exception as e:
-    print(f"Error initializing gemini-2.0-flash chat model: {e}")
+    print(f"Error initializing gemini-2.5-pro-preview-03-25 chat model: {e}")
     raise ValueError(f"Critical Error: Unable to initialize Gemini chat model. Check model name and API Key. Details: {e}")
 
 # Initialize a separate Gemini model for title generation (can be the same or a different one)
+# No system instruction needed for the title model as it's not conversational in the same way.
 try:
     gemini_title_model = genai.GenerativeModel('gemini-2.0-flash')
     print("Gemini title model initialized: gemini-2.0-flash")
@@ -163,6 +168,7 @@ def chat():
 
     # Generate bot response using Gemini
     try:
+        # Start chat with the retrieved history. The SYSTEM_INSTRUCTION is already part of the model's setup.
         chat_session = gemini_model.start_chat(history=gemini_history)
         response = chat_session.send_message(user_message)
         bot_response_content = response.text
